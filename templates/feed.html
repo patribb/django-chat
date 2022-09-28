@@ -1,0 +1,81 @@
+{% extends "main.html" %} {% load static %} {% block content %}
+<section class="main-container">
+  <form id="post_form">
+    <input type="text" name="body" />
+  </form>
+  <div id="post__list">
+    {% for post in posts %}
+    <div class="post-wrapper">
+      <strong><small>Enviado hace {{ post.created|timesince }} - {{post.sender}}</small></strong>
+      <p>{{ post.body }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+<script type="text/javascript" src="{% static 'js/agora-rtm.js' %}"></script>
+<script type="text/javascript">
+  // agora
+  const APP_ID = "1a7483d0b7144d509eaa6529bf4e10e8";
+  const token = null;
+  const uid = String(Math.floor(Math.random() * 232));
+  const CHANNEL_NAME = "main";
+
+  let client;
+  let cahnnel;
+
+  let username = localStorage.getItem("username");
+  if (!username) {
+    window.location = "/register";
+  }
+
+  let iniateRTM = async () => {
+    client = await AgoraRTM.createInstance(APP_ID);
+    await client.login({ uid, token });
+    channel = await client.createChannel(CHANNEL_NAME);
+    await channel.join();
+
+    channel.on("ChannelMessage", (message, peerId) => {
+      post = JSON.parse(message.text);
+      addMessageToDOM(post);
+    });
+  };
+
+  iniateRTM();
+
+  let form = document.getElementById("post_form");
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    let bodyText = e.target.body.value;
+    form.reset();
+    submitData(bodyText);
+  });
+
+  let submitData = async (bodyText) => {
+    let response = await fetch("/add/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ body: bodyText, 'sender': username }),
+    });
+    let data = await response.json();
+    data['sender'] = username
+    channel.sendMessage({ text: JSON.stringify(data), type: "text" });
+
+    addMessageToDOM(data);
+  };
+
+  let addMessageToDOM = async (message) => {
+    let postList = document.getElementById("post__list");
+    let timeSince = new Intl.RelativeTimeFormat("es");
+    let messageTime = new Date()
+    let diff = new Date() - new Date(messageTime);
+    let ago = timeSince.format( - diff / (1000 * 60 * 60 * 24), 'seconds');
+    let postWrapper = `<div class="post-wrapper">
+    <strong><small>Enviado ${ago} - ${message.sender}</small></strong>
+    <p>${message.body}</p>
+  </div>`;
+    postList.insertAdjacentHTML("afterbegin", postWrapper);
+  };
+</script>
+{% endblock content %}
